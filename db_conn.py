@@ -1,4 +1,5 @@
 import mysql.connector
+import bs4
 def user_posts():
     mydb = mysql.connector.connect(
     host="frombckup.clb8pwlmio9e.ap-south-1.rds.amazonaws.com",
@@ -35,3 +36,12 @@ def user_posts():
     #print(len(row))
     mydb.close()
     return row
+def img_url():
+    img_url_list=list()
+    posts_list=user_posts()
+    for user_post in posts_list:
+        soup = bs4.BeautifulSoup(user_post, "html.parser")
+        images = soup.findAll('img')
+        for image in images:
+            img_url_list.append(str(image['src']))
+    return img_url_list
