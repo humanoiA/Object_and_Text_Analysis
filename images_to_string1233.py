@@ -3,10 +3,10 @@ import numpy as np
 import matplotlib.pyplot as plt
 import pytesseract
 from PIL import Image
-import mysql.connector
 import bs4
 from io import BytesIO
 import requests
+import database_connection
 
 
 
@@ -15,140 +15,131 @@ pytesseract.pytesseract.tesseract_cmd = 'C:\\Program Files (x86)\\Tesseract-OCR\
 
 
 
-
-def db_connection(column_name,table_name):
-    mydb = mysql.connector.connect(
-    host="frombckup.clb8pwlmio9e.ap-south-1.rds.amazonaws.com",
-    database="atgworld_p1036",
-    user="root",
-    passwd="8nRy7EbcMn5r",
-    charset='latin1',
-    use_unicode=True
-    )
-    
-    mycursor = mydb.cursor(buffered=True)
-    c=0
-    mycursor.execute('select {} from {}'.format(column_name,table_name))
-    row = [item[0] for item in mycursor.fetchall()]
-    mydb.close()
-    return row
-
-
-# In[4]:
-
-
-def img_url(column_name,table_name):
+def img_url(column_name,table_name,id_article):
     img_url_list=[]
-    posts_list=db_connection(column_name,table_name)
-    for user_post in posts_list:
-        soup = bs4.BeautifulSoup(user_post, "html.parser")
-        images = soup.findAll('img')
-        for image in images:
-            img_url_list.append(str(image['src']))
-    return img_url_list
-
-# def user_posts():
-#     mydb = mysql.connector.connect(
-#     host="frombckup.clb8pwlmio9e.ap-south-1.rds.amazonaws.com",
-#     database="atgworld_p1036",
-#     user="root",
-#     passwd="8nRy7EbcMn5r",
-#     charset='latin1',
-#     use_unicode=True
-#     )
-#     mycursor = mydb.cursor(buffered=True)
-#     c=0
-#     mycursor.execute('select description from p1036_mst_article')
-#     row = [item[0] for item in mycursor.fetchall()]
-#     mydb.close()
-#     return row
+    post_id_list=[]
+    posts_list=database_connection.connect(column_name,table_name)
+    for i in range(len(posts_list)):
+    	user_post=posts_list[i]
+    	soup = bs4.BeautifulSoup(user_post, "html.parser")
+    	images = soup.findAll('img')
+    	for image in images:
+    		img_url_list.append(str(image['src']))
+    		post_id_list.append(id_article[i])
 
 
+    return img_url_list,post_id_list
 
 
-articles_images_url_list=img_url('description','p1036_mst_article')
 
 #len(articles_images_url_list)
 
+def text_from_article_images(articles_images_url_list,post_id_list):
+	'''
+	Function for extracting text from images inside Description of article
 
-for i in range(50):
-    im=str(articles_images_url_list[i])
-    
-    print(im)
-    if im.startswith('http'):
-        response = requests.get(im)
+		parameters:
+			list of all urls of images,Ids of corresponding post
+	
+	'''
 
-        try:
-            img = Image.open(BytesIO(response.content))
-            text=pytesseract.image_to_string(img,lang='eng')
-            plt.imshow(img)
-            plt.show(img)
-            print(text)
-            print('-'*50)
+	for i in range(10):
+	    im=str(articles_images_url_list[i])
+	    id_no=post_id_list[i]
+	    print(im)
+	    print('Id in database is ',id_no)
+	    if im.startswith('http'):
+	        response = requests.get(im)
 
-        except Exception as e:
-            print('Skipping ', i)
-            print('Exception found ',e)
-            print("Status code",response.status_code)
-            print('-'*50)
-            i+=1
-            continue
-    else:
-        print('Invalid url')
-        print('-'*50)
-        continue
+	        try:
+	            img = Image.open(BytesIO(response.content))
+	            text=pytesseract.image_to_string(img,lang='eng')
+	            plt.imshow(img)
+	            plt.show(img)
+	            print(text)
+	            print('-'*50)
+
+	        except Exception as e:
+	            print('Skipping ', i)
+	            print('Exception found ',e)
+	            print("Status code",response.status_code)
+	            print('-'*50)
+	            i+=1
+	            continue
+	    else:
+	        print('Invalid url')
+	        print('-'*50)
+	        continue
         
 
+def preprocess_profile_images(profile_img_url_list,id_article):
+	'''
+	This function preprocesses all the profile_images by removing irrelevant spaces and adding a specific prefix
+	
+
+		Parameters:
+			list of all profile images present inside database,id of article
+		Return:
+			list of all processed images url,list of profile ids corresponding to that article
+	'''
+	profile_img_list=[]
+	profile_id_list=[]
+	for j in range(len(profile_img_url_list)):
+		i=profile_img_url_list[j]
+		i=i.replace(' ','')
+		if len(i) is not 0:
+			p='https://s3.ap-south-1.amazonaws.com/atg-storage-s3/assets/Frontend/images/article_image/'+str(i)
+			profile_img_list.append(p)
+			profile_id_list.append(id_article[j])
+
+	#print('list for profile images\n\n ',profile_img_list)
+	return profile_img_list,profile_id_list
 
 
+def text_from_profile_images(profile_img_list,profile_id_list):
+	'''
+	This funciton extract text from Article Profile images
+	'''
 
-profile_img_url_list=db_connection('profile_image','p1036_mst_article')
+	for i in range(10): # for now keeping it as 10
+	    im=str(profile_img_list[i])
+	    
+	    print(im)
+	    print("Id of profile is ",profile_id_list[i])
+	    response = requests.get(im)
 
+	    try:
+	        img = Image.open(BytesIO(response.content))
+	        text=pytesseract.image_to_string(img,lang='eng')
+	        plt.imshow(img)
+	        plt.show(img)
+	        print(text)
+	        print('-'*50)
 
-
-
-#len(profile_img_url_list)
-
-
-
-
-profile_img_list=[]
-for i in profile_img_url_list:
-    i=i.replace(' ','')
-    if len(i) is not 0:
-        p='https://s3.ap-south-1.amazonaws.com/atg-storage-s3/assets/Frontend/images/article_image/'+str(i)
-        profile_img_list.append(p)
-        
-
-
-# In[17]:
-
-
-print('list for profile images\n\n ',profile_img_list)
-
-
-# In[16]:
+	    except Exception as e:
+	        print('Skipping ', i)
+	        print('-'*50)
+	        i+=1
+	        continue
 
 
-for i in range(100):
-    im=str(profile_img_list[i])
-    
-    print(im)
-    response = requests.get(im)
+id_article=database_connection.connect('id,profile_image','p1036_mst_article')
 
-    try:
-        img = Image.open(BytesIO(response.content))
-        text=pytesseract.image_to_string(img,lang='eng')
-        plt.imshow(img)
-        plt.show(img)
-        print(text)
-        print('-'*50)
+#Requesting database for Description column and extracting images url 
+articles_images_url_list,post_id_list=img_url('description','p1036_mst_article',id_article)
 
-    except Exception as e:
-        print('Skipping ', i)
-        print('-'*50)
-        i+=1
-        continue
+#Extracting text from images present inside the article
+text_from_article_images(articles_images_url_list,post_id_list)
+
+#Requesting database for profile images of article 
+profile_img_url_list=database_connection.connect('profile_image','p1036_mst_article')
+
+profile_img_list,profile_id_list=preprocess_profile_images(profile_img_url_list,id_article)
+
+#Extracting text from profile images
+text_from_profile_images(profile_img_list,profile_id_list)
+
+
 
 
 
